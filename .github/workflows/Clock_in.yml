@@ -2,7 +2,7 @@ name: Clock_in
 
 on:
   schedule:
-    - cron: '37 14 * * *' # Clock in at 7:00 CST everyday.
+    - cron: '30 7 * * *' # Clock in at 7:00 CST everyday.
 
   workflow_dispatch:
 
