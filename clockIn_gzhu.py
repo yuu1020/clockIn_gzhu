@@ -1,9 +1,9 @@
 import os
+import time
 import traceback
 
 import selenium.webdriver
 from loguru import logger
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -35,7 +35,7 @@ def launch_webdriver():
     return driver
 
 
-def wd_login(xuhao, mima):
+def wd_login(xuhao, mima, location):
     driver = launch_webdriver()
     wdwait = WebDriverWait(driver, 30)
 
@@ -47,7 +47,7 @@ def wd_login(xuhao, mima):
     # 0表示不需要，1表示需要
     notification = 0
 
-    for retries in range(10):
+    for retries in range(5):
         try:
             logger.info(f"第{retries+1}次运行")
             refresh_times = 0
@@ -83,13 +83,10 @@ def wd_login(xuhao, mima):
                     f'https://newcas.gzhu.edu.cn/cas/login?service=https%3A%2F%2Fnewmy.gzhu.edu.cn%2Fup%2Fview%3Fm%3Dup'
                 )
 
-                try:
-                    wdwait.until(
-                        EC.visibility_of_element_located(
-                            (By.XPATH,
-                             "//div[@class='robot-mag-win small-big-small']")))
-                except TimeoutException:
-                    pass
+                wdwait.until(
+                    EC.visibility_of_element_located(
+                        (By.XPATH,
+                         "//div[@class='robot-mag-win small-big-small']")))
 
                 logger.info('正在尝试登陆融合门户')
                 for script in [
@@ -100,12 +97,9 @@ def wd_login(xuhao, mima):
                     driver.execute_script(script)
 
             if pageName in [0, 1]:
-                try:
-                    wdwait.until(
-                        EC.visibility_of_element_located(
-                            (By.XPATH, '//a[@title="健康打卡"]/img')))
-                except TimeoutException:
-                    pass
+                wdwait.until(
+                    EC.visibility_of_element_located(
+                        (By.XPATH, '//a[@title="健康打卡"]/img')))
 
                 logger.info('正在转到学生健康状况申报页面')
                 driver.get(
@@ -119,15 +113,51 @@ def wd_login(xuhao, mima):
                 logger.info('正在转到填报健康信息 - 学生健康状况申报页面')
 
             if pageName in [0, 1, 2, 3]:
-                try:
-                    wdwait.until(
-                        EC.element_to_be_clickable(
-                            (By.XPATH,
-                             "//div[@align='right']/input[@type='checkbox']")))
-                except TimeoutException:
-                    pass
+                wdwait.until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH,
+                         "//div[@align='right']/input[@type='checkbox']")))
 
                 logger.info('开始填表')
+
+                xpath_list = [
+                    "//span[@aria-labelledby='select2-V1_CTRL119-container']",
+                    "//span[@aria-labelledby='select2-V1_CTRL120-container']",
+                    "//span[@aria-labelledby='select2-V1_CTRL121-container']"
+                ]
+
+                index = 0
+                while index < 3:
+                    driver.find_element(By.XPATH, xpath_list[index]).click()
+
+                    wdwait.until(
+                        EC.visibility_of_element_located((
+                            By.XPATH,
+                            "//span[@class='select2-dropdown select2-dropdown--above']"
+                        )))
+                    driver.find_element(By.CLASS_NAME,
+                                        "select2-search__field").send_keys(
+                                            location[index])
+
+                    wdwait.until(
+                        EC.invisibility_of_element_located(
+                            (By.XPATH,
+                             "//li[contains(text(), 'searching...')]")))
+
+                    time.sleep(0.5)
+
+                    driver.find_element(
+                        By.XPATH,
+                        "//li[@class='select2-results__option select2-results__option--highlighted']/span"
+                    ).click()
+
+                    time.sleep(0.5)
+                    index += 1
+
+                driver.find_element(
+                    By.XPATH,
+                    "//input[@name='fieldJBXXjgsjtdz']").send_keys(location[3])
+
                 for xpath in [
                         "//div[@align='right']/input[@type='checkbox']",
                         "//nobr[contains(text(), '提交')]/.."
@@ -161,19 +191,19 @@ def wd_login(xuhao, mima):
                 message = driver.execute_script(
                     "return document.getElementsByClassName('form_do_action_error')[0]['textContent']"
                 )
-                logger.info(message)
 
                 if message == '打卡成功':
                     logger.info("打卡成功")
                     break
                 else:
+                    logger.error(message)
                     logger.info('重新进行打卡')
         except Exception:
             logger.error(traceback.format_exc())
             logger.error(f"第{retries+1}次运行失败")
 
-            # retries == 9代表最后一次循环，如果这次循环仍然异常，则
-            if retries == 9:
+            # retries == 4代表最后一次循环，如果这次循环仍然异常，则
+            if retries == 4:
                 notification = 1
 
     driver.quit()
@@ -187,5 +217,7 @@ def wd_login(xuhao, mima):
 if __name__ == "__main__":
     xuhao = str(os.environ['XUHAO'])
     mima = str(os.environ['MIMA'])
+    location = str(os.environ['LOCATION'])
+    location = location.split(" ")
 
-    wd_login(xuhao, mima)
+    wd_login(xuhao, mima, location)
